@@ -154,6 +154,72 @@ static ssize_t proc_set_log_level(struct file *file, const char __user *buffer, 
 
 	return count;
 }
+static ssize_t proc_set_flush_tx(struct file *file, const char __user *buffer,
+	size_t count, loff_t *pos, void *data)
+{
+	struct net_device *dev = data;
+	_adapter *adapter = (_adapter *)rtw_netdev_priv(dev);
+	char tmp[64];
+	size_t len;
+	char *cur, *token;
+	u32 mask = 0;
+	bool explicit_mask = false;
+
+	if (!adapter)
+		return -ENODEV;
+
+	if (count == 0)
+		return -EINVAL;
+
+	len = min(count, sizeof(tmp) - 1);
+	if (copy_from_user(tmp, buffer, len))
+		return -EFAULT;
+	tmp[len] = '\0';
+
+	cur = tmp;
+	while ((token = strsep(&cur, " \t,\n")) != NULL) {
+		u32 val;
+
+		if (!*token)
+			continue;
+
+		if (!strncasecmp(token, "all", 3)) {
+			mask = 0;
+			explicit_mask = false;
+			break;
+		} else if (!strncasecmp(token, "vo", 2)) {
+			mask |= BIT(VO_QUEUE_INX);
+			explicit_mask = true;
+		} else if (!strncasecmp(token, "vi", 2)) {
+			mask |= BIT(VI_QUEUE_INX);
+			explicit_mask = true;
+		} else if (!strncasecmp(token, "be", 2)) {
+			mask |= BIT(BE_QUEUE_INX);
+			explicit_mask = true;
+		} else if (!strncasecmp(token, "bk", 2)) {
+			mask |= BIT(BK_QUEUE_INX);
+			explicit_mask = true;
+		} else if (!strncasecmp(token, "mgmt", 4)) {
+			mask |= BIT(MGT_QUEUE_INX) | BIT(HIGH_QUEUE_INX);
+			explicit_mask = true;
+		} else if (!strncasecmp(token, "hiq", 3) ||
+			   !strncasecmp(token, "hi", 2)) {
+			mask |= BIT(HIGH_QUEUE_INX);
+			explicit_mask = true;
+		} else if (!kstrtou32(token, 0, &val)) {
+			if (val < HW_QUEUE_ENTRY) {
+				mask |= BIT(val);
+				explicit_mask = true;
+			}
+		}
+	}
+
+	rtw_tx_flush_queue(adapter, explicit_mask ? mask : 0);
+	rtw_write_port_cancel(adapter);
+
+	return count;
+}
+
 
 #ifdef DBG_MEM_ALLOC
 static int proc_get_mstat(struct seq_file *m, void *v)
@@ -6662,6 +6728,7 @@ const struct rtw_proc_hdl adapter_proc_hdls[] = {
 	RTW_PROC_HDL_SSEQ("rx_stat", proc_get_rx_stat, NULL),
 
 	RTW_PROC_HDL_SSEQ("tx_stat", proc_get_tx_stat, NULL),
+	RTW_PROC_HDL_SSEQ("flush_tx", proc_get_dummy, proc_set_flush_tx),
 	RTW_PROC_HDL_SSEQ("sta_tx_stat", proc_get_sta_tx_stat, proc_set_sta_tx_stat),
 	/**** PHY Capability ****/
 	RTW_PROC_HDL_SSEQ("phy_cap", proc_get_phy_cap, NULL),
