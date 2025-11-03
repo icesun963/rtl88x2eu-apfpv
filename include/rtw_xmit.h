@@ -971,6 +971,7 @@ extern struct xmit_buf *rtw_alloc_xmitbuf(struct xmit_priv *pxmitpriv);
 extern s32 rtw_free_xmitbuf(struct xmit_priv *pxmitpriv, struct xmit_buf *pxmitbuf);
 
 void rtw_count_tx_stats(_adapter *padapter, struct xmit_frame *pxmitframe, int sz);
+void rtw_tx_flush_queue(_adapter *padapter, u32 queue_mask);
 extern void rtw_update_protection(_adapter *padapter, u8 *ie, uint ie_len);
 
 extern s32 rtw_make_wlanhdr(_adapter *padapter, u8 *hdr, struct pkt_attrib *pattrib);
