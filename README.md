@@ -56,7 +56,8 @@ variables are required:
 ```bash
 export TOOLCHAIN_PREFIX=arm-openipc-linux-gnueabihf-
 export KERNEL_DIR=$HOME/openipc/output/build/linux-ssc338q
-export KERNEL_VERSION=5.10.113-openipc-ssc338q
+# Optional: KERNEL_VERSION is derived from $KERNEL_DIR/include/generated/utsrelease.h
+# export KERNEL_VERSION=5.10.113-openipc-ssc338q
 
 scripts/build_ssc338q_driver.sh
 ```
@@ -69,9 +70,10 @@ the module using the helper script:
 sudo apt-get update
 sudo apt-get install -y build-essential git bc flex bison libncurses-dev libssl-dev libelf-dev
 
-export TOOLCHAIN_PREFIX=arm-openipc-linux-gnueabihf-
-export KERNEL_DIR=$HOME/openipc/output/build/linux-ssc338q
-export KERNEL_VERSION=5.10.113-openipc-ssc338q
+export TOOLCHAIN_PREFIX=$HOME/builder/openipc/output/host/bin/arm-openipc-linux-gnueabihf-
+export KERNEL_DIR=$HOME/builder/openipc/output/build/linux-custom
+# Optional: override if the utsrelease header is missing or custom
+# export KERNEL_VERSION=$(sed -n 's/^#define UTS_RELEASE "\(.*\)"/\1/p' "$KERNEL_DIR/include/generated/utsrelease.h")
 
 git clone https://github.com/sickgreg/rtl88x2eu-apfpv.git
 cd rtl88x2eu-apfpv
@@ -79,9 +81,36 @@ cd rtl88x2eu-apfpv
 scripts/build_ssc338q_driver.sh
 ```
 
-If you keep the sources elsewhere, set `REPO_URL` (and optionally `WORKDIR`)
-before invoking the script so it can clone or update your preferred mirror.
-Without overrides it defaults to `https://github.com/sickgreg/rtl88x2eu-apfpv.git`.
+> **Tip:** Run the helper as your normal user to keep the resulting
+> `8812eu.ko` owned by your account. If you keep the sources elsewhere, set
+> `REPO_URL` (and optionally `WORKDIR`) before invoking the script so it can
+> clone or update your preferred mirror. Without overrides it defaults to
+> `https://github.com/sickgreg/rtl88x2eu-apfpv.git`.
+
+### Bringing up hostapd on ssc338q
+
+If `hostapd` reports `nl80211: Could not configure driver mode`, make sure the
+module is reloaded and the interface is prepared for AP mode:
+
+```bash
+# On the target rootfs after copying 88x2eu/8812eu.ko
+modprobe -r 88x2eu || true
+insmod /lib/modules/$(uname -r)/kernel/drivers/net/wireless/88x2eu.ko
+
+ip link set wlan0 down
+iw dev wlan0 set type __ap
+ip link set wlan0 up
+
+# Optional: verify AP support is advertised
+iw list | grep -A5 "Supported interface modes"
+
+# Now start hostapd
+hostapd /etc/hostapd/hostapd.conf
+```
+
+If `iw` still cannot switch the type, confirm no other process keeps `wlan0` up
+in managed mode (stop `wpa_supplicant`/`NetworkManager`) and that the module was
+built against the currently running kernel (`modinfo 88x2eu | grep vermagic`).
 ## Increasing TX Power in Monitor Mode
 The driver supports changing TX power dynamically with no additional patch needed.  
 Just add ```rtw_tx_pwr_by_rate=0 rtw_tx_pwr_lmt_enable=0``` when ```insmod```, then use ```iw set txpower fixed```.

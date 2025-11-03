@@ -11,12 +11,31 @@ set -euo pipefail
 #      mirrors or local caches.
 
 if [[ $(id -u) -eq 0 ]]; then
-  echo "[!] Run this script as a regular user so the build artefacts are owned by you." >&2
-  exit 1
+  echo "[!] Running as root will leave the build artefacts owned by root." >&2
 fi
 
 : "${TOOLCHAIN_PREFIX:?Set TOOLCHAIN_PREFIX to the Sigmastar toolchain prefix (e.g. arm-openipc-linux-gnueabihf-)}"
 : "${KERNEL_DIR:?Set KERNEL_DIR to the path of the ssc338q kernel source or headers (e.g. ~/openipc/output/build/linux-ssc338q)}"
+
+if [[ -z "${KERNEL_VERSION:-}" ]]; then
+  utsrelease_header="${KERNEL_DIR}/include/generated/utsrelease.h"
+  if [[ -r "${utsrelease_header}" ]]; then
+    KERNEL_VERSION=$(sed -n 's/^#define UTS_RELEASE "\(.*\)"/\1/p' "${utsrelease_header}")
+    if [[ -n "${KERNEL_VERSION}" ]]; then
+      export KERNEL_VERSION
+      echo "[*] Derived KERNEL_VERSION='${KERNEL_VERSION}' from ${utsrelease_header}" >&2
+    else
+      echo "[!] Failed to parse kernel release from ${utsrelease_header}." >&2
+      echo "[!] Export KERNEL_VERSION manually (e.g. 5.10.113-openipc-ssc338q)." >&2
+      exit 1
+    fi
+  else
+    echo "[!] Set KERNEL_VERSION to the kernel release string (e.g. 5.10.113-openipc-ssc338q)." >&2
+    echo "[!] ${utsrelease_header} is missing or unreadable." >&2
+    exit 1
+  fi
+fi
+
 : "${KERNEL_VERSION:?Set KERNEL_VERSION to the kernel release string (e.g. 5.10.113-openipc-ssc338q)}"
 
 SCRIPT_DIR=$(cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -76,12 +95,42 @@ make ARCH=arm \
      KVER="${KERNEL_VERSION}" \
      modules
 
+find_module_artifact() {
+  if [[ -n "${MODULE_ARTIFACT:-}" && -f "${MODULE_ARTIFACT}" ]]; then
+    echo "${MODULE_ARTIFACT}"
+    return 0;
+  fi
+
+  local candidates=(88x2eu.ko 8812eu.ko rtl88x2eu.ko)
+  for candidate in "${candidates[@]}"; do
+    if [[ -f "${candidate}" ]]; then
+      echo "${candidate}"
+      return 0
+    fi
+  done
+
+  local first_module
+  first_module=$(ls -1 *.ko 2>/dev/null | head -n1 || true)
+  if [[ -n "${first_module}" ]]; then
+    echo "${first_module}"
+    return 0
+  fi
+
+  return 1
+}
+
+MODULE_FILE=$(find_module_artifact || true)
+
 # Optionally strip the module if the toolchain provides a strip binary.
-if command -v "${TOOLCHAIN_PREFIX}strip" >/dev/null 2>&1; then
-  "${TOOLCHAIN_PREFIX}strip" -g 88x2eu.ko
+if [[ -n "${MODULE_FILE}" ]] && command -v "${TOOLCHAIN_PREFIX}strip" >/dev/null 2>&1; then
+  "${TOOLCHAIN_PREFIX}strip" -g "${MODULE_FILE}"
 fi
 
-echo "[*] Build complete. Module located at $(realpath 88x2eu.ko)"
+if [[ -n "${MODULE_FILE}" ]]; then
+  echo "[*] Build complete. Module located at $(realpath "${MODULE_FILE}")"
+else
+  echo "[!] Build finished but no .ko module was detected in $(pwd)." >&2
+fi
 
 echo "[*] To install into a rootfs, set INSTALL_MOD_PATH and rerun make modules_install, e.g.:"
 echo "    INSTALL_MOD_PATH=/path/to/rootfs make ARCH=arm CROSS_COMPILE=${TOOLCHAIN_PREFIX} KSRC=${KERNEL_DIR} KVER=${KERNEL_VERSION} modules_install"
