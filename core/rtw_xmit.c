@@ -6900,6 +6900,124 @@ void rtw_ack_tx_done(struct xmit_priv *pxmitpriv, int status)
 }
 #endif /* CONFIG_XMIT_ACK */
 
+static void rtw_flush_hwxmit_queue(struct xmit_priv *pxmitpriv,
+				  struct hw_xmit *phwxmit,
+				  bool is_mgmt)
+{
+	_queue *sta_queue;
+	_list *phead, *plist;
+	_irqL irqL;
+
+	if (!phwxmit)
+		return;
+
+	sta_queue = phwxmit->sta_queue;
+	if (!sta_queue)
+		return;
+
+	_enter_critical_bh(&sta_queue->lock, &irqL);
+	phead = get_list_head(sta_queue);
+	plist = get_next(phead);
+
+	while (rtw_end_of_queue_search(phead, plist) == _FALSE) {
+		struct tx_servq *ptxservq = LIST_CONTAINOR(plist,
+					struct tx_servq,
+					tx_pending);
+
+		plist = get_next(plist);
+
+		if (is_mgmt)
+			rtw_free_mgmt_xmitframe_queue(pxmitpriv,
+					     &ptxservq->sta_pending);
+		else
+			rtw_free_xmitframe_queue(pxmitpriv,
+				    &ptxservq->sta_pending);
+
+		ptxservq->qcnt = 0;
+		rtw_list_delete(&ptxservq->tx_pending);
+		_rtw_init_listhead(&ptxservq->tx_pending);
+	}
+
+	_exit_critical_bh(&sta_queue->lock, &irqL);
+
+	phwxmit->accnt = 0;
+}
+
+static struct hw_xmit *rtw_get_hwxmit_by_hw_queue(struct xmit_priv *pxmitpriv,
+					u32 hw_queue, bool *is_mgmt)
+{
+	if (!pxmitpriv || !pxmitpriv->hwxmits)
+		return NULL;
+
+	if (is_mgmt)
+		*is_mgmt = _FALSE;
+
+	switch (hw_queue) {
+	case VO_QUEUE_INX:
+		return (pxmitpriv->hwxmit_entry > 0) ? &pxmitpriv->hwxmits[0] : NULL;
+	case VI_QUEUE_INX:
+		return (pxmitpriv->hwxmit_entry > 1) ? &pxmitpriv->hwxmits[1] : NULL;
+	case BE_QUEUE_INX:
+		return (pxmitpriv->hwxmit_entry > 2) ? &pxmitpriv->hwxmits[2] : NULL;
+	case BK_QUEUE_INX:
+		return (pxmitpriv->hwxmit_entry > 3) ? &pxmitpriv->hwxmits[3] : NULL;
+#ifdef CONFIG_RTW_MGMT_QUEUE
+	case MGT_QUEUE_INX:
+	case HIGH_QUEUE_INX:
+		if (pxmitpriv->hwxmit_entry > 4) {
+			if (is_mgmt)
+				*is_mgmt = _TRUE;
+			return &pxmitpriv->hwxmits[pxmitpriv->hwxmit_entry - 1];
+		}
+		break;
+#endif
+	default:
+		break;
+	}
+
+	return NULL;
+}
+
+void rtw_tx_flush_queue(_adapter *padapter, u32 queue_mask)
+{
+	struct xmit_priv *pxmitpriv;
+	u32 q;
+	bool flush_all;
+
+	if (!padapter)
+		return;
+
+	pxmitpriv = &padapter->xmitpriv;
+	flush_all = (queue_mask == 0);
+
+	for (q = 0; q < HW_QUEUE_ENTRY; q++) {
+		struct hw_xmit *phwxmit;
+		bool is_mgmt = _FALSE;
+
+		if ((q == BCN_QUEUE_INX) || (q == TXCMD_QUEUE_INX))
+			continue;
+
+		if (!flush_all && !(queue_mask & BIT(q)))
+			continue;
+
+		phwxmit = rtw_get_hwxmit_by_hw_queue(pxmitpriv, q, &is_mgmt);
+		if (!phwxmit)
+			continue;
+
+		rtw_flush_hwxmit_queue(pxmitpriv, phwxmit, is_mgmt);
+	}
+
+#ifdef CONFIG_USB_HCI
+	if (flush_all || queue_mask & (BIT(VO_QUEUE_INX) | BIT(VI_QUEUE_INX) |
+		BIT(BE_QUEUE_INX) | BIT(BK_QUEUE_INX))) {
+		pxmitpriv->beq_cnt = 0;
+		pxmitpriv->bkq_cnt = 0;
+		pxmitpriv->viq_cnt = 0;
+		pxmitpriv->voq_cnt = 0;
+	}
+#endif
+}
+
 void rtw_hci_flush(_adapter *padapter)
 {
 	u8 q;

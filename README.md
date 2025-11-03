@@ -45,7 +45,44 @@ $ sudo ./dkms-remove.sh
 $ make
 $ sudo make install
 ```
-## Increasing TX Power in Monitor Mode 
+
+### Quick build for Sigmastar ssc338q
+
+For OpenIPC AP/FPV targets you can call the helper script under
+`scripts/build_ssc338q_driver.sh`. When you run it from inside this repository it
+reuses the existing checkout and never hits the network, so only the toolchain
+variables are required:
+
+```bash
+export TOOLCHAIN_PREFIX=arm-openipc-linux-gnueabihf-
+export KERNEL_DIR=$HOME/openipc/output/build/linux-ssc338q
+export KERNEL_VERSION=5.10.113-openipc-ssc338q
+
+scripts/build_ssc338q_driver.sh
+```
+
+If you need to bootstrap a fresh Lubuntu host, the following block clones the
+driver from the `sickgreg` GitHub namespace, installs prerequisites, and builds
+the module using the helper script:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y build-essential git bc flex bison libncurses-dev libssl-dev libelf-dev
+
+export TOOLCHAIN_PREFIX=arm-openipc-linux-gnueabihf-
+export KERNEL_DIR=$HOME/openipc/output/build/linux-ssc338q
+export KERNEL_VERSION=5.10.113-openipc-ssc338q
+
+git clone https://github.com/sickgreg/rtl88x2eu-apfpv.git
+cd rtl88x2eu-apfpv
+
+scripts/build_ssc338q_driver.sh
+```
+
+If you keep the sources elsewhere, set `REPO_URL` (and optionally `WORKDIR`)
+before invoking the script so it can clone or update your preferred mirror.
+Without overrides it defaults to `https://github.com/sickgreg/rtl88x2eu-apfpv.git`.
+## Increasing TX Power in Monitor Mode
 The driver supports changing TX power dynamically with no additional patch needed.  
 Just add ```rtw_tx_pwr_by_rate=0 rtw_tx_pwr_lmt_enable=0``` when ```insmod```, then use ```iw set txpower fixed```.
 
