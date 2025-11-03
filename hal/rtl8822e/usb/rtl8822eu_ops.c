@@ -253,8 +253,10 @@ static void rtl8822eu_hci_flush(PADAPTER padapter, u32 queue)
 	rtw_tx_flush_queue(padapter, BIT(queue));
 
 #ifdef CONFIG_USB_HCI
-	if (rtl8822eu_queue_is_data(queue))
+	if (rtl8822eu_queue_is_data(queue)) {
 		rtw_write_port_cancel(padapter);
+		RTW_ENABLE_FUNC(padapter, DF_TX_BIT);
+	}
 #endif
 }
 

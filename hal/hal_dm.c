@@ -1981,10 +1981,8 @@ void rtw_phydm_watchdog(_adapter *adapter, bool in_lps)
 
 	if (in_lps)
 		phydm_watchdog_lps(&pHalData->odmpriv);
-	else {
+	else
 		phydm_watchdog(&pHalData->odmpriv);
-		rtw_refresh_forced_rate_tx_stats(adapter);
-	}
 
 #ifdef CONFIG_RTW_ACS
 	rtw_acs_update_current_info(adapter);
@@ -1992,5 +1990,4 @@ void rtw_phydm_watchdog(_adapter *adapter, bool in_lps)
 
 	return;
 }
-
 

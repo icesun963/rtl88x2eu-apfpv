@@ -206,6 +206,9 @@ static ssize_t proc_set_flush_tx(struct file *file, const char __user *buffer,
 			   !strncasecmp(token, "hi", 2)) {
 			mask |= BIT(HIGH_QUEUE_INX);
 			explicit_mask = true;
+		} else if (!strncasecmp(token, "pub", 3)) {
+			mask |= BIT(HIGH_QUEUE_INX);
+			explicit_mask = true;
 		} else if (!kstrtou32(token, 0, &val)) {
 			if (val < HW_QUEUE_ENTRY) {
 				mask |= BIT(val);
@@ -215,7 +218,14 @@ static ssize_t proc_set_flush_tx(struct file *file, const char __user *buffer,
 	}
 
 	rtw_tx_flush_queue(adapter, explicit_mask ? mask : 0);
-	rtw_write_port_cancel(adapter);
+
+	if (!explicit_mask ||
+	    (mask & (BIT(VO_QUEUE_INX) | BIT(VI_QUEUE_INX) |
+		     BIT(BE_QUEUE_INX) | BIT(BK_QUEUE_INX) |
+		     BIT(MGT_QUEUE_INX) | BIT(HIGH_QUEUE_INX)))) {
+		rtw_write_port_cancel(adapter);
+		RTW_ENABLE_FUNC(adapter, DF_TX_BIT);
+	}
 
 	return count;
 }

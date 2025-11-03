@@ -1,0 +1,8 @@
+# 1) Toolchain prefix (note the trailing dash!)
+export TOOLCHAIN_PREFIX=/home/greg/builder/openipc/output/host/bin/arm-openipc-linux-gnueabihf-
+
+# 2) Kernel source/tree used to build your firmware
+export KERNEL_DIR=/home/greg/builder/openipc/output/build/linux-custom
+
+
+then run /scripts build script
