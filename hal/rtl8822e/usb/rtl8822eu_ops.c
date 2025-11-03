@@ -231,6 +231,33 @@ static u8 rtl8822eu_ps_func(PADAPTER padapter, HAL_INTF_PS_FUNC efunc_id, u8 *va
 	return bResult;
 }
 
+#ifdef CONFIG_USB_HCI
+static bool rtl8822eu_queue_is_data(u32 queue)
+{
+	return queue == VO_QUEUE_INX || queue == VI_QUEUE_INX ||
+	       queue == BE_QUEUE_INX || queue == BK_QUEUE_INX;
+}
+#endif
+
+static void rtl8822eu_hci_flush(PADAPTER padapter, u32 queue)
+{
+	if (!padapter)
+		return;
+
+	if (queue >= HW_QUEUE_ENTRY)
+		return;
+
+	if ((queue == BCN_QUEUE_INX) || (queue == TXCMD_QUEUE_INX))
+		return;
+
+	rtw_tx_flush_queue(padapter, BIT(queue));
+
+#ifdef CONFIG_USB_HCI
+	if (rtl8822eu_queue_is_data(queue))
+		rtw_write_port_cancel(padapter);
+#endif
+}
+
 #ifdef CONFIG_RTW_LED
 static void read_ledsetting(PADAPTER adapter)
 {
@@ -352,6 +379,9 @@ void rtl8822eu_set_hal_ops(PADAPTER padapter)
 	ops->hostap_mgnt_xmit_entry = rtl8822eu_hostap_mgnt_xmit_entry;
 #endif
 	ops->interface_ps_func = rtl8822eu_ps_func;
+#ifdef CONFIG_USB_HCI
+	ops->hci_flush = rtl8822eu_hci_flush;
+#endif
 #ifdef CONFIG_XMIT_THREAD_MODE
 	ops->xmit_thread_handler = rtl8822eu_xmit_buf_handler;
 #endif

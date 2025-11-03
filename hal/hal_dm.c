@@ -15,6 +15,7 @@
 
 #include <drv_types.h>
 #include <hal_data.h>
+#include <hal_com.h>
 
 /* A mapping from HalData to ODM. */
 enum odm_board_type boardType(u8 InterfaceSel)
@@ -1980,12 +1981,14 @@ void rtw_phydm_watchdog(_adapter *adapter, bool in_lps)
 
 	if (in_lps)
 		phydm_watchdog_lps(&pHalData->odmpriv);
-	else
+	else {
 		phydm_watchdog(&pHalData->odmpriv);
+		rtw_refresh_forced_rate_tx_stats(adapter);
+	}
 
-	#ifdef CONFIG_RTW_ACS
+#ifdef CONFIG_RTW_ACS
 	rtw_acs_update_current_info(adapter);
-	#endif
+#endif
 
 	return;
 }
