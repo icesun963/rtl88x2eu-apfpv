@@ -16,6 +16,7 @@
 #include <linux/ctype.h>	/* tolower() */
 #include <drv_types.h>
 #include <hal_data.h>
+#include <hal_com_reg.h>
 #include "rtw_proc.h"
 #include <rtw_btcoex.h>
 
@@ -164,6 +165,8 @@ static ssize_t proc_set_flush_tx(struct file *file, const char __user *buffer,
 	char *cur, *token;
 	u32 mask = 0;
 	bool explicit_mask = false;
+	u8 txpause_save = 0;
+	bool tx_paused = false;
 
 	if (!adapter)
 		return -ENODEV;
@@ -217,6 +220,12 @@ static ssize_t proc_set_flush_tx(struct file *file, const char __user *buffer,
 		}
 	}
 
+	txpause_save = rtw_read8(adapter, REG_TXPAUSE);
+	if (txpause_save != 0xff) {
+		rtw_write8(adapter, REG_TXPAUSE, 0xff);
+		tx_paused = true;
+	}
+
 	rtw_tx_flush_queue(adapter, explicit_mask ? mask : 0);
 
 	if (!explicit_mask ||
@@ -224,9 +233,13 @@ static ssize_t proc_set_flush_tx(struct file *file, const char __user *buffer,
 		     BIT(BE_QUEUE_INX) | BIT(BK_QUEUE_INX) |
 		     BIT(MGT_QUEUE_INX) | BIT(HIGH_QUEUE_INX)))) {
 		rtw_write_port_cancel(adapter);
+		rtw_msleep_os(5);
 		RTW_ENABLE_FUNC(adapter, DF_TX_BIT);
-	}
+	} else
+		rtw_msleep_os(2);
 
+	if (tx_paused)
+		rtw_write8(adapter, REG_TXPAUSE, txpause_save);
 	return count;
 }
 

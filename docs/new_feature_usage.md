@@ -18,13 +18,13 @@ Usage examples:
 ls /proc/net/rtl88x2eu
 
 # Flush only the public queue (PUBQ) without disturbing the link
-echo pub | sudo tee /proc/net/rtl88x2eu/wlan0/flush_tx
+printf 'pub\n' > /proc/net/rtl88x2eu/wlan0/flush_tx
 
 # Flush specific data queues (multiple tokens are accepted)
-echo "vo vi" | sudo tee /proc/net/rtl88x2eu/wlan0/flush_tx
+printf 'vo vi\n' > /proc/net/rtl88x2eu/wlan0/flush_tx
 
-# Flush every queue and cancel active USB transfers
-echo all | sudo tee /proc/net/rtl88x2eu/wlan0/flush_tx
+# Flush every queue, pausing TX briefly
+printf 'all\n' > /proc/net/rtl88x2eu/wlan0/flush_tx
 ```
 
 Tokens you can pass (case-insensitive):
@@ -41,8 +41,8 @@ Notes:
 - Flushing non-data queues (`pub`, `mgmt`, `hiq`) leaves the transport
   path enabled, so the interface stays connected.
 - When data queues are flushed (`vo`, `vi`, `be`, `bk`, `all`), the
-  driver cancels outstanding URBs and re-enables transmission
-  automatically.
+  driver pauses TX, cancels outstanding URBs, and re-enables
+  transmission automatically after a short delay.
 
 Forced-Rate Telemetry (`rate_ctl`, `tx_stat`, `sta_tx_stat`)
 ------------------------------------------------------------
@@ -55,10 +55,10 @@ Set or clear a forced rate:
 
 ```
 # Force MCS5 (0x15) with data fallback enabled
-echo "0x15 1" | sudo tee /proc/net/rtl88x2eu/wlan0/rate_ctl
+printf '0x15 1\n' > /proc/net/rtl88x2eu/wlan0/rate_ctl
 
 # Return to rate adaptation (RA) mode
-echo "0xff 0" | sudo tee /proc/net/rtl88x2eu/wlan0/rate_ctl
+printf '0xff 0\n' > /proc/net/rtl88x2eu/wlan0/rate_ctl
 ```
 
 Collect retry statistics on demand:
@@ -68,7 +68,7 @@ Collect retry statistics on demand:
 cat /proc/net/rtl88x2eu/wlan0/tx_stat
 
 # Query a single station (replace MAC with the peer you care about)
-echo "aa:bb:cc:dd:ee:ff" | sudo tee /proc/net/rtl88x2eu/wlan0/sta_tx_stat
+printf 'aa:bb:cc:dd:ee:ff\n' > /proc/net/rtl88x2eu/wlan0/sta_tx_stat
 cat /proc/net/rtl88x2eu/wlan0/sta_tx_stat
 ```
 
@@ -79,4 +79,3 @@ Tips:
 - If you revert to RA (`rate_ctl` set to `0xff`), the firmware resumes
   managing link-speed selection and the manual telemetry requests will
   still work whenever you need them.
-

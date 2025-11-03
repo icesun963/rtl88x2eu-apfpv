@@ -1090,9 +1090,6 @@ void rtw_refresh_forced_rate_tx_stats(_adapter *adapter)
 	if (!adapter->hal_func.reqtxrpt)
 		return;
 
-	if (adapter->fix_rate == 0xff && hal_data->fw_ractrl == _TRUE)
-		return;
-
 	_enter_critical_bh(&pstapriv->sta_hash_lock, &irqL);
 	for (hash_idx = 0; hash_idx < NUM_STA && sta_cnt < NUM_STA; hash_idx++) {
 		phead = &(pstapriv->sta_hash[hash_idx]);

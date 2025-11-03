@@ -6943,6 +6943,71 @@ static void rtw_flush_hwxmit_queue(struct xmit_priv *pxmitpriv,
 	phwxmit->accnt = 0;
 }
 
+static bool rtw_xmitbuf_match_hw_queue(struct xmit_buf *pxmitbuf, u32 hw_queue)
+{
+	if (!pxmitbuf)
+		return _FALSE;
+
+	switch (hw_queue) {
+	case VO_QUEUE_INX:
+	case VI_QUEUE_INX:
+	case BE_QUEUE_INX:
+	case BK_QUEUE_INX:
+		return pxmitbuf->flags == hw_queue;
+#ifdef CONFIG_RTW_MGMT_QUEUE
+	case MGT_QUEUE_INX:
+	case HIGH_QUEUE_INX:
+		if (pxmitbuf->buf_tag == XMITBUF_MGNT)
+			return _TRUE;
+		return pxmitbuf->flags == hw_queue;
+#endif
+	default:
+		break;
+	}
+
+	return _TRUE;
+}
+
+static void rtw_flush_pending_xmitbuf_queue(struct xmit_priv *pxmitpriv,
+					    bool flush_all, u32 hw_queue)
+{
+	_queue *pqueue;
+	_irqL irqL;
+	_list drop_head;
+	_list *phead, *plist;
+
+	if (!pxmitpriv)
+		return;
+
+	pqueue = &pxmitpriv->pending_xmitbuf_queue;
+	_rtw_init_listhead(&drop_head);
+
+	_enter_critical_bh(&pqueue->lock, &irqL);
+	phead = get_list_head(pqueue);
+	plist = get_next(phead);
+
+	while (rtw_end_of_queue_search(phead, plist) == _FALSE) {
+		struct xmit_buf *pxmitbuf = LIST_CONTAINOR(plist, struct xmit_buf, list);
+
+		plist = get_next(plist);
+
+		if (!flush_all && !rtw_xmitbuf_match_hw_queue(pxmitbuf, hw_queue))
+			continue;
+
+		rtw_list_delete(&pxmitbuf->list);
+		rtw_list_insert_tail(&pxmitbuf->list, &drop_head);
+	}
+	_exit_critical_bh(&pqueue->lock, &irqL);
+
+	while (rtw_is_list_empty(&drop_head) == _FALSE) {
+		_list *plist_drop = get_next(&drop_head);
+		struct xmit_buf *pxmitbuf = LIST_CONTAINOR(plist_drop, struct xmit_buf, list);
+
+		rtw_list_delete(&pxmitbuf->list);
+		rtw_free_xmitbuf(pxmitpriv, pxmitbuf);
+	}
+}
+
 static struct hw_xmit *rtw_get_hwxmit_by_hw_queue(struct xmit_priv *pxmitpriv,
 					u32 hw_queue, bool *is_mgmt)
 {
@@ -7005,6 +7070,7 @@ void rtw_tx_flush_queue(_adapter *padapter, u32 queue_mask)
 			continue;
 
 		rtw_flush_hwxmit_queue(pxmitpriv, phwxmit, is_mgmt);
+		rtw_flush_pending_xmitbuf_queue(pxmitpriv, flush_all, q);
 	}
 
 #ifdef CONFIG_USB_HCI
@@ -7033,4 +7099,3 @@ void rtw_hci_flush(_adapter *padapter)
 	else
 		RTW_WARN("hal ops: hci_flush is NULL\n");
 }
-
