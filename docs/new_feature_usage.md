@@ -54,11 +54,14 @@ disabled, so you now pull retry/failure counters manually when needed.
 Set or clear a forced rate:
 
 ```
-# Force MCS5 (0x15) with data fallback enabled
-printf '0x15 1\n' > /proc/net/rtl88x2eu/wlan0/rate_ctl
+# Force MCS5 (0x15). Data fallback is enabled by default
+printf '0x15\n' > /proc/net/rtl88x2eu/wlan0/rate_ctl
+
+# Force MCS5 (0x15) without allowing data fallback
+printf '0x15 0\n' > /proc/net/rtl88x2eu/wlan0/rate_ctl
 
 # Return to rate adaptation (RA) mode
-printf '0xff 0\n' > /proc/net/rtl88x2eu/wlan0/rate_ctl
+printf '0xff\n' > /proc/net/rtl88x2eu/wlan0/rate_ctl
 ```
 
 Collect retry statistics on demand:
@@ -76,6 +79,9 @@ Tips:
 
 - Run the `tx_stat` or `sta_tx_stat` commands immediately after forcing
   a rate to capture retries that occurred under the fixed mask.
+- Fallback remains enabled when you set a fixed rate; append `0` as the
+  second argument if you want to keep the firmware from dropping to
+  lower rates automatically.
 - If you revert to RA (`rate_ctl` set to `0xff`), the firmware resumes
   managing link-speed selection and the manual telemetry requests will
   still work whenever you need them.
