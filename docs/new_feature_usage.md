@@ -66,7 +66,7 @@ printf '0x15 0\n' > /proc/net/rtl88x2eu/wlan0/rate_ctl
 printf '0x15 1\n' > /proc/net/rtl88x2eu/wlan0/rate_ctl
 
 # Return to rate adaptation (RA) mode
-printf '0xff 0\n' > /proc/net/rtl88x2eu/wlan0/rate_ctl
+printf '0xff\n' > /proc/net/rtl88x2eu/wlan0/rate_ctl
 ```
 
 Collect retry statistics on demand:
