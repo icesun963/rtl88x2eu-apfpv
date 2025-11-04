@@ -2939,6 +2939,8 @@ ssize_t proc_set_rate_ctl(struct file *file, const char __user *buffer, size_t c
 		}
 		if (num >= 2)
 			adapter->data_fb = data_fb ? 1 : 0;
+		else if (num >= 1)
+			adapter->data_fb = (fix_rate == 0xFF) ? 0 : 1;
 #endif
 	}
 
