@@ -2937,8 +2937,8 @@ ssize_t proc_set_rate_ctl(struct file *file, const char __user *buffer, size_t c
 			if (adapter->fix_bw != 0xFF && fix_rate_ori != fix_rate)
 				rtw_run_in_thread_cmd(adapter, ((void *)(rtw_update_tx_rate_bmp)), adapter_to_dvobj(adapter));
 		}
-		if (num >= 2)
-			adapter->data_fb = data_fb ? 1 : 0;
+               if (num >= 2)
+                       adapter->data_fb = data_fb ? 1 : 0;
 #endif
 	}
 

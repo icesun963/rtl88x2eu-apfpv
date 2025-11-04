@@ -20,6 +20,9 @@ ls /proc/net/rtl88x2eu
 # Flush only the public queue (PUBQ) without disturbing the link
 printf 'pub\n' > /proc/net/rtl88x2eu/wlan0/flush_tx
 
+# Flush PUBQ and force-cancel outstanding URBs (legacy behaviour)
+printf 'pub cancel\n' > /proc/net/rtl88x2eu/wlan0/flush_tx
+
 # Flush specific data queues (multiple tokens are accepted)
 printf 'vo vi\n' > /proc/net/rtl88x2eu/wlan0/flush_tx
 
@@ -34,12 +37,14 @@ Tokens you can pass (case-insensitive):
 - `mgmt`, `hiq`, `hi` – management/high priority queue.
 - `pub` – alias for the public queue. This was the original source of
   build-up when PUBQ radio buffers needed to be cleared.
+- `cancel` – optionally force a USB bulk-out cancel after the flush.
 - Numeric queue IDs (`0`–`7`) are also accepted.
 
 Notes:
 
 - Flushing non-data queues (`pub`, `mgmt`, `hiq`) leaves the transport
-  path enabled, so the interface stays connected.
+  path enabled, so the interface stays connected. Add the `cancel` token
+  if you explicitly want to tear down outstanding URBs afterwards.
 - When data queues are flushed (`vo`, `vi`, `be`, `bk`, `all`), the
   driver pauses TX, cancels outstanding URBs, and re-enables
   transmission automatically after a short delay.
@@ -54,7 +59,10 @@ disabled, so you now pull retry/failure counters manually when needed.
 Set or clear a forced rate:
 
 ```
-# Force MCS5 (0x15) with data fallback enabled
+# Force MCS5 (0x15) without firmware fallback (default)
+printf '0x15 0\n' > /proc/net/rtl88x2eu/wlan0/rate_ctl
+
+# Force MCS5 (0x15) but allow the firmware to fall back on retries
 printf '0x15 1\n' > /proc/net/rtl88x2eu/wlan0/rate_ctl
 
 # Return to rate adaptation (RA) mode
@@ -76,6 +84,18 @@ Tips:
 
 - Run the `tx_stat` or `sta_tx_stat` commands immediately after forcing
   a rate to capture retries that occurred under the fixed mask.
+- "Fallback" controls whether the firmware may walk its retry table and
+  drop to lower data rates after the initial attempt at the forced rate
+  fails. Leaving fallback enabled gives the hardware room to recover
+  from momentary fades or interference without dropping the link;
+  disabling fallback means every retry uses exactly the rate you forced.
+- Fallback stays disabled unless you explicitly write `1` as the second
+  argument. Keep it disabled if you are experimenting with pure fixed
+  rates, but enable it when you want retries to walk down the firmware's
+  rate table automatically.
+- The default `pub` flush keeps USB transports running so even tight
+  masks remain stable. If you need the legacy "drop everything" flush,
+  add the `cancel` token to explicitly tear down the bulk-out pipes.
 - If you revert to RA (`rate_ctl` set to `0xff`), the firmware resumes
   managing link-speed selection and the manual telemetry requests will
   still work whenever you need them.
