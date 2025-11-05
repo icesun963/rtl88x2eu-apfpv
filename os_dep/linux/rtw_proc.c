@@ -168,6 +168,7 @@ static ssize_t proc_set_flush_tx(struct file *file, const char __user *buffer,
        bool force_cancel = false;
        bool skip_cancel = false;
 	u8 txpause_save = 0;
+	u8 txpause_req = 0;
 	bool tx_paused = false;
 
 	if (!adapter)
@@ -227,8 +228,24 @@ static ssize_t proc_set_flush_tx(struct file *file, const char __user *buffer,
 	}
 
 	txpause_save = rtw_read8(adapter, REG_TXPAUSE);
-	if (txpause_save != 0xff) {
-		rtw_write8(adapter, REG_TXPAUSE, 0xff);
+	if (!explicit_mask) {
+		txpause_req = StopAll | StopBcnHiMgt;
+	} else {
+		if (mask & BIT(VO_QUEUE_INX))
+			txpause_req |= StopVO;
+		if (mask & BIT(VI_QUEUE_INX))
+			txpause_req |= StopVI;
+		if (mask & BIT(BE_QUEUE_INX))
+			txpause_req |= StopBE;
+		if (mask & BIT(BK_QUEUE_INX))
+			txpause_req |= StopBK;
+		if (mask & BIT(MGT_QUEUE_INX))
+			txpause_req |= StopMgt;
+		if (mask & BIT(HIGH_QUEUE_INX))
+			txpause_req |= StopHigh;
+	}
+	if (txpause_req && (txpause_save & txpause_req) != txpause_req) {
+		rtw_write8(adapter, REG_TXPAUSE, txpause_save | txpause_req);
 		tx_paused = true;
 	}
 

@@ -63,10 +63,12 @@ Notes:
   path enabled, so the interface stays connected. Add the `cancel` token
   if you explicitly want to tear down outstanding URBs afterwards.
 - When data queues are flushed (`vo`, `vi`, `be`, `bk`, `all`), the
-  driver pauses TX, cancels outstanding URBs, and re-enables
-  transmission automatically after a short delay. Add `nocancel` to
-  skip the cancel step when you want to clear a queue quickly without
-  disturbing associated stations.
+  driver now pauses only the access categories you selected rather than
+  blanketing every FIFO. That keeps beacons and management exchanges
+  flowing even if you purge `vo`/`vi` repeatedly. The USB bulk-out
+  cancel still runs by default for data queues; add `nocancel` to skip
+  that step when you want to clear a queue quickly without disturbing
+  associated stations.
 
 Forced-Rate Telemetry (`rate_ctl`, `tx_stat`, `sta_tx_stat`)
 ------------------------------------------------------------
