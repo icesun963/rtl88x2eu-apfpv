@@ -38,7 +38,24 @@ Tokens you can pass (case-insensitive):
 - `pub` – alias for the public queue. This was the original source of
   build-up when PUBQ radio buffers needed to be cleared.
 - `cancel` – optionally force a USB bulk-out cancel after the flush.
+- `nocancel` – skip the USB cancel step even if you target data queues.
 - Numeric queue IDs (`0`–`7`) are also accepted.
+
+Mapping these tokens to the values reported by
+`/proc/net/rtl88x2eu/<iface>/mac_qinfo` can be helpful when you are
+watching the hardware FIFOs with `watch cat mac_qinfo`:
+
+| proc token | queue id | mac_qinfo label | access category |
+|------------|----------|-----------------|-----------------|
+| `vo`       | 0        | `Q0`            | Voice           |
+| `vi`       | 1        | `Q1`            | Video           |
+| `be`       | 2        | `Q2`            | Best effort     |
+| `bk`       | 3        | `Q3`            | Background      |
+| `mgmt`     | 6/7      | `MG`/`HI`       | Management / HI |
+
+If you see `pkt_num` incrementing on `Q0`, for example, flushing with
+`printf 'vo\n' > …/flush_tx` will drain that queue without touching the
+others.
 
 Notes:
 
@@ -47,7 +64,9 @@ Notes:
   if you explicitly want to tear down outstanding URBs afterwards.
 - When data queues are flushed (`vo`, `vi`, `be`, `bk`, `all`), the
   driver pauses TX, cancels outstanding URBs, and re-enables
-  transmission automatically after a short delay.
+  transmission automatically after a short delay. Add `nocancel` to
+  skip the cancel step when you want to clear a queue quickly without
+  disturbing associated stations.
 
 Forced-Rate Telemetry (`rate_ctl`, `tx_stat`, `sta_tx_stat`)
 ------------------------------------------------------------
