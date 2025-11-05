@@ -69,6 +69,59 @@ Notes:
   cancel still runs by default for data queues; add `nocancel` to skip
   that step when you want to clear a queue quickly without disturbing
   associated stations.
+- After the data queues are purged, the AP refreshes each associated
+  station's inactivity and keep-alive counters. That prevents
+  `expire_timeout_chk()` from expelling a client immediately after a
+  flush just because its null-data probes were momentarily paused.
+- Repeated VO/VI flushes can still make stations fall off the BSS when
+  they are already running on a tight forced-rate mask. Consider the
+  hostapd options below if you see long keep-alive gaps, and leave some
+  time between flushes so null-data probes and BAR/ADDBA recovery frames
+  can get through at the forced rate.
+
+Hostapd knobs for aggressive queue purges
+-----------------------------------------
+
+If you are clearing the VO/VI queue on a fixed high MCS, extend the
+station grace period in hostapd so temporary keep-alive failures do not
+drop the client outright:
+
+- `ap_max_inactivity=600` stretches hostapd’s inactivity window so it
+  waits much longer before deciding a station is gone while the driver
+  is still busy retrying null-data keep-alives at the forced rate.
+- `skip_inactivity_poll=1` stops hostapd from probing with QoS null
+  frames immediately before dropping a STA; the driver already runs its
+  own DELBA/ADDBA recovery during `expire_timeout_chk()`.
+- `disassoc_low_ack=0` keeps hostapd from forcefully disassociating a
+  peer after a burst of failed retries while you are holding a strict
+  mask.
+
+Combine those hostapd overrides with a slightly longer delay between
+flushes (1–2 s instead of a few hundred milliseconds) and, when
+possible, enable fallback retries via `rate_ctl` so null frames and BAR
+exchanges can step down if they hit a fade.
+
+The example configuration you provided already includes those
+hostapd values, so no further change is necessary on that side; the new
+driver behaviour described above handles the remaining inactivity timer
+resets automatically.
+
+Why the driver still expels a STA after many flushes
+----------------------------------------------------
+
+- The AP-side watchdog in `expire_timeout_chk()` only gives a station a
+  few two-second ticks to reply before it is reclaimed. Each failed
+  check triggers DELBA/ADDBA recovery over the data queues, so if those
+  frames never get ACKed at the forced MCS the station eventually hits
+  the zero counter and is freed.
+- `rtw_tx_flush_queue()` tears down every pending VO/VI frame and resets
+  the per-AC transmit counters. From the peer’s perspective an entire
+  AMPDU burst vanished, so it requests reordering state via BAR/DELBA
+  exchanges that also have to traverse the forced-rate data path.
+- When `rate_ctl` disables `data_fb`, the transmit descriptor clears the
+  firmware’s fallback table. Keep-alive null data frames therefore retry
+  at exactly the same (possibly too high) rate, compounding the recovery
+  issues above.
 
 Forced-Rate Telemetry (`rate_ctl`, `tx_stat`, `sta_tx_stat`)
 ------------------------------------------------------------
