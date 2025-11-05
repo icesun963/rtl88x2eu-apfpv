@@ -38,7 +38,24 @@ Tokens you can pass (case-insensitive):
 - `pub` – alias for the public queue. This was the original source of
   build-up when PUBQ radio buffers needed to be cleared.
 - `cancel` – optionally force a USB bulk-out cancel after the flush.
+- `nocancel` – skip the USB cancel step even if you target data queues.
 - Numeric queue IDs (`0`–`7`) are also accepted.
+
+Mapping these tokens to the values reported by
+`/proc/net/rtl88x2eu/<iface>/mac_qinfo` can be helpful when you are
+watching the hardware FIFOs with `watch cat mac_qinfo`:
+
+| proc token | queue id | mac_qinfo label | access category |
+|------------|----------|-----------------|-----------------|
+| `vo`       | 0        | `Q0`            | Voice           |
+| `vi`       | 1        | `Q1`            | Video           |
+| `be`       | 2        | `Q2`            | Best effort     |
+| `bk`       | 3        | `Q3`            | Background      |
+| `mgmt`     | 6/7      | `MG`/`HI`       | Management / HI |
+
+If you see `pkt_num` incrementing on `Q0`, for example, flushing with
+`printf 'vo\n' > …/flush_tx` will drain that queue without touching the
+others.
 
 Notes:
 
@@ -46,8 +63,65 @@ Notes:
   path enabled, so the interface stays connected. Add the `cancel` token
   if you explicitly want to tear down outstanding URBs afterwards.
 - When data queues are flushed (`vo`, `vi`, `be`, `bk`, `all`), the
-  driver pauses TX, cancels outstanding URBs, and re-enables
-  transmission automatically after a short delay.
+  driver now pauses only the access categories you selected rather than
+  blanketing every FIFO. That keeps beacons and management exchanges
+  flowing even if you purge `vo`/`vi` repeatedly. The USB bulk-out
+  cancel still runs by default for data queues; add `nocancel` to skip
+  that step when you want to clear a queue quickly without disturbing
+  associated stations.
+- After the data queues are purged, the AP refreshes each associated
+  station's inactivity and keep-alive counters. That prevents
+  `expire_timeout_chk()` from expelling a client immediately after a
+  flush just because its null-data probes were momentarily paused.
+- Repeated VO/VI flushes can still make stations fall off the BSS when
+  they are already running on a tight forced-rate mask. Consider the
+  hostapd options below if you see long keep-alive gaps, and leave some
+  time between flushes so null-data probes and BAR/ADDBA recovery frames
+  can get through at the forced rate.
+
+Hostapd knobs for aggressive queue purges
+-----------------------------------------
+
+If you are clearing the VO/VI queue on a fixed high MCS, extend the
+station grace period in hostapd so temporary keep-alive failures do not
+drop the client outright:
+
+- `ap_max_inactivity=600` stretches hostapd’s inactivity window so it
+  waits much longer before deciding a station is gone while the driver
+  is still busy retrying null-data keep-alives at the forced rate.
+- `skip_inactivity_poll=1` stops hostapd from probing with QoS null
+  frames immediately before dropping a STA; the driver already runs its
+  own DELBA/ADDBA recovery during `expire_timeout_chk()`.
+- `disassoc_low_ack=0` keeps hostapd from forcefully disassociating a
+  peer after a burst of failed retries while you are holding a strict
+  mask.
+
+Combine those hostapd overrides with a slightly longer delay between
+flushes (1–2 s instead of a few hundred milliseconds) and, when
+possible, enable fallback retries via `rate_ctl` so null frames and BAR
+exchanges can step down if they hit a fade.
+
+The example configuration you provided already includes those
+hostapd values, so no further change is necessary on that side; the new
+driver behaviour described above handles the remaining inactivity timer
+resets automatically.
+
+Why the driver still expels a STA after many flushes
+----------------------------------------------------
+
+- The AP-side watchdog in `expire_timeout_chk()` only gives a station a
+  few two-second ticks to reply before it is reclaimed. Each failed
+  check triggers DELBA/ADDBA recovery over the data queues, so if those
+  frames never get ACKed at the forced MCS the station eventually hits
+  the zero counter and is freed.
+- `rtw_tx_flush_queue()` tears down every pending VO/VI frame and resets
+  the per-AC transmit counters. From the peer’s perspective an entire
+  AMPDU burst vanished, so it requests reordering state via BAR/DELBA
+  exchanges that also have to traverse the forced-rate data path.
+- When `rate_ctl` disables `data_fb`, the transmit descriptor clears the
+  firmware’s fallback table. Keep-alive null data frames therefore retry
+  at exactly the same (possibly too high) rate, compounding the recovery
+  issues above.
 
 Forced-Rate Telemetry (`rate_ctl`, `tx_stat`, `sta_tx_stat`)
 ------------------------------------------------------------

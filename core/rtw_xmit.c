@@ -6900,6 +6900,51 @@ void rtw_ack_tx_done(struct xmit_priv *pxmitpriv, int status)
 }
 #endif /* CONFIG_XMIT_ACK */
 
+#ifdef CONFIG_AP_MODE
+static void rtw_refresh_ap_keep_alive(_adapter *padapter, u32 queue_mask)
+{
+	struct sta_priv *pstapriv;
+	_irqL irqL;
+	_list *phead, *plist;
+
+	if (!padapter)
+		return;
+
+	if (!MLME_IS_AP(padapter))
+		return;
+
+	if (!(queue_mask & (BIT(VO_QUEUE_INX) | BIT(VI_QUEUE_INX) |
+			     BIT(BE_QUEUE_INX) | BIT(BK_QUEUE_INX))))
+		return;
+
+	pstapriv = &padapter->stapriv;
+
+	_enter_critical_bh(&pstapriv->asoc_list_lock, &irqL);
+	phead = &pstapriv->asoc_list;
+	plist = get_next(phead);
+
+	while (rtw_end_of_queue_search(phead, plist) == _FALSE) {
+		struct sta_info *psta = LIST_CONTAINOR(plist,
+				struct sta_info, asoc_list);
+
+		plist = get_next(plist);
+
+		psta->expire_to = pstapriv->expire_to;
+		psta->keep_alive_trycnt = 0;
+#if !defined(CONFIG_ACTIVE_KEEP_ALIVE_CHECK) && defined(CONFIG_80211N_HT)
+		psta->under_exist_checking = 0;
+#endif
+		psta->state &= ~WIFI_STA_ALIVE_CHK_STATE;
+	}
+
+	_exit_critical_bh(&pstapriv->asoc_list_lock, &irqL);
+}
+#else
+static inline void rtw_refresh_ap_keep_alive(_adapter *padapter, u32 queue_mask)
+{
+}
+#endif
+
 static void rtw_flush_hwxmit_queue(struct xmit_priv *pxmitpriv,
 				  struct hw_xmit *phwxmit,
 				  bool is_mgmt)
@@ -7081,6 +7126,16 @@ void rtw_tx_flush_queue(_adapter *padapter, u32 queue_mask)
 		pxmitpriv->viq_cnt = 0;
 		pxmitpriv->voq_cnt = 0;
 	}
+#endif
+#ifdef CONFIG_AP_MODE
+	if (flush_all)
+		rtw_refresh_ap_keep_alive(padapter, BIT(VO_QUEUE_INX) |
+			BIT(VI_QUEUE_INX) |
+			BIT(BE_QUEUE_INX) |
+			BIT(BK_QUEUE_INX));
+	else if (queue_mask & (BIT(VO_QUEUE_INX) | BIT(VI_QUEUE_INX) |
+			 BIT(BE_QUEUE_INX) | BIT(BK_QUEUE_INX)))
+		rtw_refresh_ap_keep_alive(padapter, queue_mask);
 #endif
 }
 
