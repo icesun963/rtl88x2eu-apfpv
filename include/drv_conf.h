@@ -240,7 +240,7 @@
 		#undef CONFIG_POWER_SAVING
 	#endif
 	#ifdef CONFIG_BEAMFORMING
-		#undef CONFIG_BEAMFORMING
+		//#undef CONFIG_BEAMFORMING
 	#endif
 #endif
 

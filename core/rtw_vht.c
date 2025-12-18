@@ -291,17 +291,22 @@ void rtw_vht_use_default_setting(_adapter *padapter)
 
 	/* Beamforming setting */
 	CLEAR_FLAGS(pvhtpriv->beamform_cap);
+
 #ifdef CONFIG_BEAMFORMING
+	RTW_INFO("[VHT] CONFIG_BEAMFORMING\n");
 #ifdef RTW_BEAMFORMING_VERSION_2
+	RTW_INFO("[VHT] RTW_BEAMFORMING_VERSION_2\n");
 #ifdef CONFIG_CONCURRENT_MODE
+	RTW_INFO("[VHT] CONFIG_CONCURRENT_MODE\n");
 	/* only enable beamforming in STA client mode */
 	if (MLME_IS_STA(padapter) && !MLME_IS_GC(padapter))
 #else
 	if ((MLME_IS_AP(padapter) && !MLME_IS_GO(padapter)) ||
-	    (MLME_IS_STA(padapter) && !MLME_IS_GC(padapter)))
+	    (MLME_IS_STA(padapter) && !MLME_IS_GC(padapter)) || true)
 #endif
 #endif
 	{
+		RTW_INFO("[VHT] Test Beamformer\n");
 		rtw_hal_get_def_var(padapter, HAL_DEF_EXPLICIT_BEAMFORMER,
 			(u8 *)&bHwSupportBeamformer);
 		rtw_hal_get_def_var(padapter, HAL_DEF_EXPLICIT_BEAMFORMEE,
@@ -333,6 +338,13 @@ void rtw_vht_use_default_setting(_adapter *padapter)
 			}
 #endif
 		}
+		else{
+			SET_FLAG(pvhtpriv->beamform_cap, BEAMFORMING_VHT_BEAMFORMER_ENABLE);
+			RTW_INFO("[VHT] Support **Beamformer\n");
+		}
+
+		RTW_INFO("[VHT] Beamformer FLAG  0x%02X \n",bHwSupportBeamformer);
+		
 		if (TEST_FLAG(pregistrypriv->beamform_cap, BIT1) && bHwSupportBeamformee) {
 			SET_FLAG(pvhtpriv->beamform_cap, BEAMFORMING_VHT_BEAMFORMEE_ENABLE);
 			RTW_INFO("[VHT] Support Beamformee\n");
@@ -343,6 +355,8 @@ void rtw_vht_use_default_setting(_adapter *padapter)
 				RTW_INFO("[VHT] Support MU-MIMO STA\n");
 			}
 		}
+
+		RTW_INFO("[VHT] Beamformee FLAG  0x%02X \n",bHwSupportBeamformee);
 	}
 #endif /* CONFIG_BEAMFORMING */
 
