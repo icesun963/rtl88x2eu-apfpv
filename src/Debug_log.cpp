@@ -7,6 +7,8 @@
 #include "ch32v20x_usart.h"
 #include "ch32v20x_dma.h"
 #include "ch32v20x_misc.h"
+#include <cstdarg>
+#include <cstdio>
 
 /* ===== IRQ ===== */
 void USART3_IRQHandler(void) __attribute__((interrupt("WCH-Interrupt-fast")));
@@ -86,6 +88,24 @@ void Debug_log_init(void)
 
 uint64_t Debug_log_count64(void) { return 0ULL; }
 void Debug_log_time(void) { }
+
+#define LOG_BUF_SIZE 256
+
+void Debug_log_writef(const char *format, ...)
+{
+    char buffer[LOG_BUF_SIZE];
+    va_list args;
+    va_start(args, format);
+    int len = vsnprintf(buffer, sizeof(buffer), format, args);
+    va_end(args);
+
+    if (len > 0) {
+        // 若长度超出缓冲区，vsnprintf 会截断，但返回实际所需长度（>= sizeof）
+        // 此处截断可能丢失信息，可考虑动态分配（见方案二）
+        if (len >= sizeof(buffer)) len = sizeof(buffer) - 1;
+        Debug_log_write_num(buffer, len);
+    }
+}
 
 void Debug_log_write(const void *data)
 {

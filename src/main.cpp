@@ -165,6 +165,7 @@ void ams_datas_save_run()
 
 int main(void)
 {
+    DEBUG("SystemInit...\n");
     SystemInit();
     SystemCoreClockUpdate();
     time_hw_init();
@@ -192,7 +193,7 @@ int main(void)
 
     ADC_DMA_init();
     ADC_DMA_wait_full();
-
+    DEBUG("MC_PULL_calibration_boot...\n");
     MC_PULL_calibration_boot();
     ams_datas_read();
 

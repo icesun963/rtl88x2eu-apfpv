@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-//#define Debug_log_on
+#define Debug_log_on
 #define Debug_log_baudrate 115200
 
 static inline void Delay_Init(void) { }
@@ -20,21 +20,24 @@ uint64_t Debug_log_count64(void);
 void Debug_log_time(void);
 void Debug_log_write(const void *data);
 void Debug_log_write_num(const void *data, int num);
+void Debug_log_writef(const char *format, ...);
 
 #define DEBUG_time_log()
 
+
 #ifdef Debug_log_on
+  #define DEBUG_init()        Debug_log_init()
+  #define DEBUG(logs)         Debug_log_write(logs)
+  #define DEBUGF(...)         Debug_log_writef( __VA_ARGS__)
+  #define DEBUG_num(logs,num) Debug_log_write_num((logs),(num))
+  #define DEBUG_time()        Debug_log_time()
+  #define DEBUG_get_time()    Debug_log_count64()
+#else
   #define DEBUG_init()        Debug_log_init()
   #define DEBUG(logs)         Debug_log_write(logs)
   #define DEBUG_num(logs,num) Debug_log_write_num((logs),(num))
   #define DEBUG_time()        Debug_log_time()
   #define DEBUG_get_time()    Debug_log_count64()
-#else
-  #define DEBUG_init()        do{}while(0)
-  #define DEBUG(logs)         do{}while(0)
-  #define DEBUG_num(logs,num) do{}while(0)
-  #define DEBUG_time()        do{}while(0)
-  #define DEBUG_get_time()    (0ULL)
 #endif
 
 #ifdef __cplusplus

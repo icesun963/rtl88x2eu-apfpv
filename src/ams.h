@@ -63,7 +63,7 @@ struct _filament
         name[2] = 'T';
         name[3] = 'G';
         name[4] = '\0';
-        meters = 1;
+        meters = 10;
         meters_virtual_count = 0;
         online = true;
         motion = _filament_motion::idle;

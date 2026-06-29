@@ -4,6 +4,7 @@
 #include "ch32v20x_gpio.h"
 #include "ch32v20x_rcc.h"
 #include "core_riscv.h"
+#include "Debug_log.h"
 
 static uint32_t g_iic_delay_ticks = 1;
 
@@ -340,5 +341,14 @@ void AS5600_soft_IIC_many::updata_angle()
             raw_angle[i] = 0;
             online[i] = false;
         }
+    }
+
+    unsigned static long lastlog = time_ms64();  // 获取从启动到当前的毫秒数
+    if(time_ms64()-lastlog>1000){
+        lastlog = time_ms64(); 
+        DEBUGF("\nAS5600 Channel 0: online=%d, magnet_stu=%d, raw_angle=%d\n", online[0], magnet_stu[0], raw_angle[0]);
+        DEBUGF("AS5600 Channel 1: online=%d, magnet_stu=%d, raw_angle=%d\n", online[1], magnet_stu[1], raw_angle[1]);
+        DEBUGF("AS5600 Channel 2: online=%d, magnet_stu=%d, raw_angle=%d\n", online[2], magnet_stu[2], raw_angle[2]);
+        DEBUGF("AS5600 Channel 3: online=%d, magnet_stu=%d, raw_angle=%d\n", online[3], magnet_stu[3], raw_angle[3]);
     }
 }
