@@ -290,6 +290,7 @@ static constexpr int MC_PULL_DEADBAND_PCT_HIGH = 70;
     static constexpr float MC_LOAD_S2_PUSH_START_PCT     = 88.0f;  // start push PWM
     static constexpr float MC_LOAD_S2_PWM_HI             = 550.0f;
     static constexpr float MC_LOAD_S2_PWM_LO             = 1000.0f;
+    
     // ===== ON_USE CONTROL =====
     static constexpr float MC_ON_USE_TARGET_PCT    = 54.0f;
     static constexpr float MC_ON_USE_BAND_LO_DELTA = 0.2f;  // band_lo = target - delta
@@ -317,10 +318,12 @@ static constexpr int      CAL_RESET_PCT_THRESH  = 15;
 static constexpr float    CAL_RESET_V_DELTA     = 0.10f;
 static constexpr float    CAL_RESET_NEAR_MIN    = 0.03f;
 
+
 static int      g_hold_ch = -1;
 static uint32_t g_hold_t0_ticks = 0;
 static int      g_hold_count = 0;
-static int      g_hold_count_max = 100;
+static int      g_hold_count_max = 500;
+static float    g_pwm_ratio[4] = {1.0f, 1.0f, 1.0f, 1.0f};
 // kiedy kanał OSTATNIO wyszedł z on_use (0 = nigdy, 1 = marker "był kiedykolwiek") (patch do wersji BMCU DM przy automatycznej zmianie filamentu gdy się skończy, żeby ekstruder nie trzymał filamentu)
 static uint64_t g_last_on_use_exit_ms[4] = {0,0,0,0};
 
@@ -593,7 +596,7 @@ static inline void MC_PULL_ONLINE_read(uint32_t now_ticks)
         lastlog1 = ms_now; 
        
         DEBUGF("\n========\n KEY_STU: %u %u %u %u ", MC_ONLINE_key_stu[0], MC_ONLINE_key_stu[1], MC_ONLINE_key_stu[2], MC_ONLINE_key_stu[3]);
-        
+      
         DEBUGF("filament_channel_inserted: %d %d %d %d ", filament_channel_inserted[0], filament_channel_inserted[1], filament_channel_inserted[2], filament_channel_inserted[3]);
 
         DEBUGF("MC_PULL_pct: %d %d %d %d \n",MC_PULL_pct[0], MC_PULL_pct[1], MC_PULL_pct[2], MC_PULL_pct[3]);
@@ -742,6 +745,13 @@ public:
     {
         I_save = 0;
         E_last = 0;
+    }
+
+    void reset_limit(float rate)
+    {
+        float pid_MAX = PWM_lim * rate;
+        float pid_MIN = -PWM_lim * rate;
+        float pid_range = (pid_MAX - pid_MIN) * 0.5f;
     }
 };
 
@@ -1676,11 +1686,11 @@ public:
                         }
                         send_hard = false;
                     }
-                    
+  
                     if (!send_stop_latch && (pct >= (float)MC_LOAD_S1_FAST_PCT))
                     {
                         g_hold_count++;
-                        DEBUG(".");
+                        DEBUG("+");
                         if(g_hold_count>=g_hold_count_max){
                             send_stop_latch = true;
 
@@ -1694,10 +1704,12 @@ public:
                             PID_speed.clear();
                             PID_pressure.clear();
                         }
+                        
                        
                     }
                     if(pct < (float)MC_LOAD_S1_FAST_PCT){
                         g_hold_count = 0;
+                        //DEBUG("-");
                     }
 
                     if (send_stop_latch)
@@ -2008,11 +2020,11 @@ float _MOTOR_CONTROL::x_prev[4] = {0,0,0,0};
 void Motion_control_set_PWM(uint8_t CHx, int PWM)
 {
     uint16_t set1 = 0, set2 = 0;
-
+    
     if (PWM > 0)       set1 = (uint16_t)PWM;
     else if (PWM < 0)  set2 = (uint16_t)(-PWM);
     else { set1 = 1000; set2 = 1000; }
-
+    
     switch (CHx)
     {
     case 3:
@@ -2762,6 +2774,14 @@ static void motor_motion_run(int error, uint64_t time_now, uint32_t now_ticks)
         }
 
         MC_PULL_ONLINE_RGB_set(i, r, g, b, is_filament_rgb);
+    }
+}
+
+void Motion_control_setValue(float *pwm_ratio)
+{
+    for(int i =0; i < 4; i++){
+        g_pwm_ratio[i] = pwm_ratio[i];
+        //MOTOR_CONTROL[i].PID_speed.reset_limit(pwm_ratio[i]);
     }
 }
 

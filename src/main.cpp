@@ -224,6 +224,13 @@ int main(void)
     bus_init();
 
     DEBUG("START\n");
+    
+    const unsigned long IDLE_TIMEOUT = 60000; // 1 minute in milliseconds
+
+    unsigned long lastActivityTime = time_ms64(); 
+
+    //如果有进过料，再进行idle的时候，1分钟后 自动重启
+    bool is_filament_sendout = false;
 
     while (1)
     {
@@ -257,8 +264,62 @@ int main(void)
                 SYS_RGB.set_RGB(0x10, 0x00, 0x00, 0);
             }
         }
-
+        error = 0;
         Motion_control_run(error);
         RGB_update();
+        
+        bool onidle = true;
+        {
+             _ams* a = &ams[BAMBU_BUS_AMS_NUM];
+             float  pwm_ratio[4] = {1.0f,1.0f,1.0f,1.0f};
+             for (size_t i = 0; i < 4; i++)
+             {
+                if(a->filament[i].name[0]=='T' && a->filament[i].name[1]=='P' && a->filament[i].name[2]=='U')
+                    pwm_ratio[i]=0.5f;
+                if(a->filament[i].motion != _filament_motion::idle)
+                {
+                    if(!is_filament_sendout){
+                        DEBUG("****in use****");
+                    }
+                    is_filament_sendout = true;
+                    onidle = false;
+                }
+                    
+
+             }
+             
+             Motion_control_setValue(pwm_ratio);
+            
+        }
+        if(error==0)
+        {
+            if(!is_filament_sendout || !onidle){
+                lastActivityTime = time_ms64();
+            }
+                
+        }
+        if(error==0)
+        {   //启动为白灯
+            //已经启动 为绿灯
+            //空闲为 蓝灯 （等待重启）
+            //重启过程 为 紫灯
+            if(is_filament_sendout){
+                SYS_RGB.set_RGB(0x00, 200, 0x00, 0);
+            }
+            if(is_filament_sendout && onidle){
+                SYS_RGB.set_RGB(0x00, 100, 200, 0);
+            }
+             // 用当前时间减去最后一次活动时间，判断是否达到了阈值
+            if (time_ms64() - lastActivityTime >= IDLE_TIMEOUT) {
+                SYS_RGB.set_RGB(255, 0x00, 255, 0);
+                DEBUG("System has been idle for 1 minute. Rebooting...");
+                
+                // 延时一下以确保上面的 Serial.println 能够完整发送到电脑
+                delay(1000 * 10); 
+                
+                // 3. 触发核心软件复位 (CH32V / RISC-V 均适用)
+                NVIC_SystemReset(); 
+            }
+        }
     }
 }

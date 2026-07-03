@@ -5,7 +5,11 @@
 void Motion_control_init();
 void Motion_control_set_PWM(uint8_t CHx, int PWM);
 void Motion_control_run(int error);
+void Motion_control_setValue(float *pwm_ratio);
+
 bool Motion_control_save_dm_key_none_thresholds(void);
+
+
 
 void MC_PULL_detect_channels_inserted();
 
